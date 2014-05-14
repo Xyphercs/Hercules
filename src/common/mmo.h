@@ -5,9 +5,10 @@
 #ifndef _COMMON_MMO_H_
 #define _COMMON_MMO_H_
 
-#include "cbasetypes.h"
-#include "../common/db.h"
 #include <time.h>
+
+#include "../common/cbasetypes.h"
+#include "../common/db.h"
 
 // server->client protocol version
 //        0 - pre-?
@@ -83,6 +84,14 @@
 #endif // 20090603
 #endif // 20070227
 
+/* Feb 1st 2012 */
+#if PACKETVER >= 20120201
+#	define NEW_CARTS
+#	define MAX_CARTS 9
+#else
+#	define MAX_CARTS 5
+#endif
+
 #define MAX_INVENTORY 100
 //Max number of characters per account. Note that changing this setting alone is not enough if the client is not hexed to support more characters as well.
 #define MAX_CHARS 9
@@ -96,6 +105,7 @@
 //Official Limit: 2.1b ( the var that stores the money doesn't go much higher than this by default )
 #define MAX_BANK_ZENY 2100000000
 
+#define MAX_LEVEL 175
 #define MAX_FAME 1000000000
 #define MAX_CART 100
 #define MAX_SKILL 1478
@@ -632,11 +642,21 @@ enum fame_list_type {
 	RANKTYPE_PK         = 3, //Not supported yet
 };
 
-enum { //Change Guild Infos
+/**
+ * Guild Basic Information
+ * It is used to request changes via intif_guild_change_basicinfo in map-server and to
+ * signalize changes made in char-server via mapif_parse_GuildMemberInfoChange
+ **/
+enum guild_basic_info {
 	GBI_EXP = 1,    ///< Guild Experience (EXP)
 	GBI_GUILDLV,    ///< Guild level
 	GBI_SKILLPOINT, ///< Guild skillpoints
-	GBI_SKILLLV,    ///< Guild skill_lv ?? seem unused
+
+	/**
+	 * Changes a skill level, struct guild_skill should be sent.
+	 * All checks regarding max skill level should be done in _map-server_
+	 **/
+	GBI_SKILLLV,    ///< Guild skill_lv
 };
 
 enum { //Change Member Infos

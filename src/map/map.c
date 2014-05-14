@@ -2,62 +2,66 @@
 // See the LICENSE file
 // Portions Copyright (c) Athena Dev Teams
 
-#include "../common/cbasetypes.h"
-#include "../common/core.h"
-#include "../common/timer.h"
-#include "../common/ers.h"
-#include "../common/grfio.h"
-#include "../common/malloc.h"
-#include "../common/socket.h" // WFIFO*()
-#include "../common/showmsg.h"
-#include "../common/nullpo.h"
-#include "../common/random.h"
-#include "../common/strlib.h"
-#include "../common/utils.h"
-#include "../common/conf.h"
-#include "../common/console.h"
-#include "../common/HPM.h"
+#define HERCULES_CORE
 
+#include "../config/core.h" // CELL_NOSTACK, CIRCULAR_AREA, CONSOLE_INPUT, DBPATH, RENEWAL
 #include "map.h"
-#include "path.h"
-#include "chrif.h"
-#include "clif.h"
-#include "duel.h"
-#include "intif.h"
-#include "npc.h"
-#include "pc.h"
-#include "status.h"
-#include "mob.h"
-#include "npc.h" // npc_setcells(), npc_unsetcells()
-#include "chat.h"
-#include "itemdb.h"
-#include "storage.h"
-#include "skill.h"
-#include "trade.h"
-#include "party.h"
-#include "unit.h"
-#include "battle.h"
-#include "battleground.h"
-#include "quest.h"
-#include "script.h"
-#include "mapreg.h"
-#include "guild.h"
-#include "pet.h"
-#include "homunculus.h"
-#include "instance.h"
-#include "mercenary.h"
-#include "elemental.h"
-#include "atcommand.h"
-#include "log.h"
-#include "mail.h"
-#include "irc-bot.h"
-#include "HPMmap.h"
 
+#include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
-#include <math.h>
+
+#include "HPMmap.h"
+#include "atcommand.h"
+#include "battle.h"
+#include "battleground.h"
+#include "chat.h"
+#include "chrif.h"
+#include "clif.h"
+#include "duel.h"
+#include "elemental.h"
+#include "guild.h"
+#include "homunculus.h"
+#include "instance.h"
+#include "intif.h"
+#include "irc-bot.h"
+#include "itemdb.h"
+#include "log.h"
+#include "mail.h"
+#include "mapreg.h"
+#include "mercenary.h"
+#include "mob.h"
+#include "npc.h"
+#include "npc.h" // npc_setcells(), npc_unsetcells()
+#include "party.h"
+#include "path.h"
+#include "pc.h"
+#include "pet.h"
+#include "quest.h"
+#include "script.h"
+#include "skill.h"
+#include "status.h"
+#include "storage.h"
+#include "trade.h"
+#include "unit.h"
+#include "../common/HPM.h"
+#include "../common/cbasetypes.h"
+#include "../common/conf.h"
+#include "../common/console.h"
+#include "../common/core.h"
+#include "../common/ers.h"
+#include "../common/grfio.h"
+#include "../common/malloc.h"
+#include "../common/nullpo.h"
+#include "../common/random.h"
+#include "../common/showmsg.h"
+#include "../common/socket.h" // WFIFO*()
+#include "../common/strlib.h"
+#include "../common/timer.h"
+#include "../common/utils.h"
+
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -490,7 +494,7 @@ static int bl_vforeach(int (*func)(struct block_list*, va_list), int blockcount,
 static int map_vforeachinmap(int (*func)(struct block_list*, va_list), int16 m, int type, va_list args) {
 	int i;
 	int returnCount = 0;
-	int bsize; 
+	int bsize;
 	va_list argscopy;
 	struct block_list *bl;
 	int blockcount = map->bl_list_count;
@@ -2846,6 +2850,7 @@ int map_eraseipport(unsigned short map_index, uint32 ip, uint16 port) {
  * [Shinryo]: Init the mapcache
  *------------------------------------------*/
 char *map_init_mapcache(FILE *fp) {
+	struct map_cache_main_header header;
 	size_t size = 0;
 	char *buffer;
 
@@ -2866,6 +2871,21 @@ char *map_init_mapcache(FILE *fp) {
 	// Read file into buffer..
 	if(fread(buffer, sizeof(char), size, fp) != size) {
 		ShowError("map_init_mapcache: Could not read entire mapcache file\n");
+		aFree(buffer);
+		return NULL;
+	}
+
+	rewind(fp);
+
+	// Get main header to verify if data is corrupted
+	if( fread(&header, sizeof(header), 1, fp) != 1 ) {
+		ShowError("map_init_mapcache: Error obtaining main header!\n");
+		aFree(buffer);
+		return NULL;
+	}
+	if( GetULong((unsigned char *)&(header.file_size)) != size ) {
+		ShowError("map_init_mapcache: Map cache is corrupted!\n");
+		aFree(buffer);
 		return NULL;
 	}
 
@@ -3636,6 +3656,8 @@ int inter_config_read(char *cfgName) {
 			strcpy(map->autotrade_merchants_db, w2);
 		else if(strcmpi(w1,"autotrade_data_db")==0)
 			strcpy(map->autotrade_data_db, w2);
+		else if(strcmpi(w1,"npc_market_data_db")==0)
+			strcpy(map->npc_market_data_db, w2);
 		/* sql log db */
 		else if(strcmpi(w1,"log_db_ip")==0)
 			strcpy(logs->db_ip, w2);
@@ -3825,7 +3847,7 @@ void map_zone_remove(int m) {
 			}
 		}
 
-		npc->parse_mapflag(map->list[m].name,empty,flag,params,empty,empty,empty);
+		npc->parse_mapflag(map->list[m].name,empty,flag,params,empty,empty,empty, NULL);
 		aFree(map->list[m].zone_mf[k]);
 		map->list[m].zone_mf[k] = NULL;
 	}
@@ -4557,7 +4579,7 @@ void map_zone_apply(int m, struct map_zone_data *zone, const char* start, const 
 		if( map->zone_mf_cache(m,flag,params) )
 			continue;
 
-		npc->parse_mapflag(map->list[m].name,empty,flag,params,start,buffer,filepath);
+		npc->parse_mapflag(map->list[m].name, empty, flag, params, start, buffer, filepath, NULL);
 	}
 }
 /* used on npc load and reload to apply all "Normal" and "PK Mode" zones */
@@ -4585,7 +4607,7 @@ void map_zone_init(void) {
 			if( map->list[j].zone == zone ) {
 				if( map->zone_mf_cache(j,flag,params) )
 					break;
-				npc->parse_mapflag(map->list[j].name,empty,flag,params,empty,empty,empty);
+				npc->parse_mapflag(map->list[j].name, empty, flag, params, empty, empty, empty, NULL);
 			}
 		}
 	}
@@ -4607,7 +4629,7 @@ void map_zone_init(void) {
 				if( map->list[j].zone == zone ) {
 					if( map->zone_mf_cache(j,flag,params) )
 						break;
-					npc->parse_mapflag(map->list[j].name,empty,flag,params,empty,empty,empty);
+					npc->parse_mapflag(map->list[j].name, empty, flag, params, empty, empty, empty, NULL);
 				}
 			}
 		}
@@ -5212,8 +5234,7 @@ int cleanup_db_sub(DBKey key, DBData *data, va_list va) {
 /*==========================================
  * map destructor
  *------------------------------------------*/
-void do_final(void)
-{
+int do_final(void) {
 	int i;
 	struct map_session_data* sd;
 	struct s_mapiterator* iter;
@@ -5308,6 +5329,7 @@ void do_final(void)
 	HPM->event(HPET_POST_FINAL);
 	
 	ShowStatus("Finished.\n");
+	return map->retval;
 }
 
 int map_abort_sub(struct map_session_data* sd, va_list ap) {
@@ -5464,8 +5486,8 @@ void map_cp_defaults(void) {
 	map->cpsd->bl.y = MAP_DEFAULT_Y;
 	map->cpsd->bl.m = map->mapname2mapid(MAP_DEFAULT);
 
-	console->addCommand("gm:info",CPCMD_A(gm_position));
-	console->addCommand("gm:use",CPCMD_A(gm_use));
+	console->input->addCommand("gm:info",CPCMD_A(gm_position));
+	console->input->addCommand("gm:use",CPCMD_A(gm_use));
 #endif
 }
 /* Hercules Plugin Mananger */
@@ -5794,7 +5816,7 @@ int do_init(int argc, char *argv[])
 	if (scriptcheck) {
 		bool failed = load_extras_count > 0 ? false : true;
 		for (i = 0; i < load_extras_count; i++) {
-			if (npc->parsesrcfile(load_extras[i], false) != 0)
+			if (npc->parsesrcfile(load_extras[i], false) != EXIT_SUCCESS)
 				failed = true;
 		}
 		if (failed)
@@ -5812,7 +5834,7 @@ int do_init(int argc, char *argv[])
 		exit(EXIT_SUCCESS);
 	}
 	
-	npc->event_do_oninit();	// Init npcs (OnInit)
+	npc->event_do_oninit( false );	// Init npcs (OnInit)
 	npc->market_fromsql(); /* after OnInit */
 	
 	if (battle_config.pk_mode)
@@ -5821,7 +5843,7 @@ int do_init(int argc, char *argv[])
 	Sql_HerculesUpdateCheck(map->mysql_handle);
 	
 #ifdef CONSOLE_INPUT
-	console->setSQL(map->mysql_handle);
+	console->input->setSQL(map->mysql_handle);
 #endif
 	
 	ShowStatus("Server is '"CL_GREEN"ready"CL_RESET"' and listening on port '"CL_WHITE"%d"CL_RESET"'.\n\n", map->port);
@@ -5839,7 +5861,7 @@ int do_init(int argc, char *argv[])
 }
 
 /*=====================================
-* Default Functions : map.h 
+* Default Functions : map.h
 * Generated by HerculesInterfaceMaker
 * created by Susu
 *-------------------------------------*/
@@ -5849,6 +5871,7 @@ void map_defaults(void) {
 	/* */
 	map->minimal = false;
 	map->count = 0;
+	map->retval = EXIT_SUCCESS;
 	
 	sprintf(map->db_path ,"db");
 	sprintf(map->help_txt ,"conf/help.txt");
