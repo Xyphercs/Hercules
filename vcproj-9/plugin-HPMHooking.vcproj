@@ -3,7 +3,7 @@
 	ProjectType="Visual C++"
 	Version="9.00"
 	Name="plugin-HPMHooking"
-	ProjectGUID="{D356871D-58E1-450B-967A-E7E9646175AF}"
+	ProjectGUID="{C9E42CC7-DD82-4F07-85DC-0A36F66A1FD3}"
 	RootNamespace="plugin-HPMHooking"
 	TargetFrameworkVersion="0"
 	>
